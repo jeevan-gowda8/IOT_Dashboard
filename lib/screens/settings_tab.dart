@@ -1,3 +1,4 @@
+// lib/screens/settings_tab.dart
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -17,138 +18,85 @@ class SettingsTab extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
+      appBar: AppBar(
+        title: Text(
+          "Settings",
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+        ),
+        backgroundColor: theme.scaffoldBackgroundColor,
+        elevation: 0,
+      ),
       body: ListView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(16),
         children: [
-          const SizedBox(height: 20),
-
-          Text(
-            "SETTINGS",
-            style: GoogleFonts.poppins(
-              fontSize: 26,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 2,
-              color: theme.colorScheme.primary,
-            ),
-          ),
-
-          const SizedBox(height: 30),
-
-          // 🌙 Theme Toggle
-          _glassTile(
+          _buildSettingTile(
             context,
-            child: Semantics(
-              container: true,
-              label: 'Toggle dark theme',
-              child: Row(
-                children: [
-                  Icon(
-                    isDarkMode ? Icons.dark_mode : Icons.light_mode,
-                    color: theme.colorScheme.primary,
-                    size: 30,
-                  ),
-                  const SizedBox(width: 20),
-                  Expanded(
-                    child: Text(
-                      "Dark Theme",
-                      style: GoogleFonts.poppins(
-                        fontSize: 18,
-                        color: theme.colorScheme.onSurface,
-                      ),
-                    ),
-                  ),
-                  Switch.adaptive(
-                    value: isDarkMode,
-                    onChanged: (value) => onThemeToggle(),
-                  ),
-                ],
-              ),
+            icon: isDarkMode ? Icons.dark_mode : Icons.light_mode,
+            title: "Dark Theme",
+            trailing: Switch.adaptive(
+              value: isDarkMode,
+              onChanged: (_) => onThemeToggle(),
+              activeColor: theme.colorScheme.primary,
             ),
+            onTap: onThemeToggle,
           ),
-
-          const SizedBox(height: 20),
-
-          // ℹ️ App Info
-          _glassTile(
-            context,
-            child: Semantics(
-              container: true,
-              label: 'View app information',
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.info_outline,
-                    color: theme.colorScheme.primary,
-                    size: 30,
-                  ),
-                  const SizedBox(width: 20),
-                  Expanded(
-                    child: Text(
-                      "App Information",
-                      style: GoogleFonts.poppins(
-                        fontSize: 18,
-                        color: theme.colorScheme.onSurface,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 20),
-
-          // 📄 Description
-          _glassTile(
-            context,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  "Campus Monitor v1.0",
-                  style: GoogleFonts.poppins(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: theme.colorScheme.onSurface,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  "Smart monitoring system for Greenhouse, Home Automation and Street Light using Thingsay API integration.",
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    color: theme.colorScheme.onSurface.withOpacity(0.7),
-                  ),
-                ),
-              ],
-            ),
-          ),
+          const SizedBox(height: 8),
+          _buildInfoCard(context),
         ],
       ),
     );
   }
 
-  Widget _glassTile(BuildContext context, {required Widget child}) {
+  Widget _buildSettingTile(BuildContext context, {
+    required IconData icon,
+    required String title,
+    required Widget trailing,
+    VoidCallback? onTap,
+  }) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(25),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-        child: Container(
-          padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(25),
-            // ✅ Theme-aware background
-            color: (isDark ? Colors.black : Colors.white).withOpacity(isDark ? 0.15 : 0.05),
-            border: Border.all(
-              color: theme.colorScheme.primary.withOpacity(0.4),
-              width: 1.2,
-            ),
+    return Card(
+      child: ListTile(
+        leading: Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: theme.colorScheme.primary.withOpacity(0.1),
+            shape: BoxShape.circle,
           ),
-          child: child,
+          child: Icon(icon, color: theme.colorScheme.primary),
+        ),
+        title: Text(title, style: theme.textTheme.titleMedium),
+        trailing: trailing,
+        onTap: onTap,
+      ),
+    );
+  }
+
+  Widget _buildInfoCard(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              "Campus Monitor v1.0",
+              style: GoogleFonts.poppins(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: theme.colorScheme.onSurface,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              "Smart monitoring system for Greenhouse, Home Automation and Street Light using Thingsay API integration.",
+              style: TextStyle(
+                fontSize: 14,
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+              ),
+            ),
+          ],
         ),
       ),
     );

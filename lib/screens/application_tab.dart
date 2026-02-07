@@ -1,6 +1,6 @@
-import 'dart:ui';
+// lib/screens/application_tab.dart
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // for haptics
+import 'package:flutter/services.dart'; // for HapticFeedback
 import 'package:google_fonts/google_fonts.dart';
 
 import 'greenhouse_page.dart';
@@ -33,7 +33,7 @@ class ApplicationTab extends StatelessWidget {
 
           const SizedBox(height: 30),
 
-          _glassTile(
+          _appTile(
             context,
             icon: Icons.eco,
             title: "Greenhouse",
@@ -43,7 +43,7 @@ class ApplicationTab extends StatelessWidget {
 
           const SizedBox(height: 20),
 
-          _glassTile(
+          _appTile(
             context,
             icon: Icons.home,
             title: "Home Automation",
@@ -53,7 +53,7 @@ class ApplicationTab extends StatelessWidget {
 
           const SizedBox(height: 20),
 
-          _glassTile(
+          _appTile(
             context,
             icon: Icons.lightbulb,
             title: "Street Light System",
@@ -65,7 +65,7 @@ class ApplicationTab extends StatelessWidget {
     );
   }
 
-  Widget _glassTile(
+  Widget _appTile(
     BuildContext context, {
     required IconData icon,
     required String title,
@@ -73,75 +73,65 @@ class ApplicationTab extends StatelessWidget {
     required Widget page,
   }) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
 
-    return Semantics(
-      container: true,
-      label: '$title, $subtitle',
-      button: true,
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      clipBehavior: Clip.hardEdge,
       child: InkWell(
-        borderRadius: BorderRadius.circular(25),
         onTap: () {
-          HapticFeedback.lightImpact(); // subtle haptic feedback
+          HapticFeedback.lightImpact();
           Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => page),
           );
         },
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(25),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-            child: Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(25),
-                // ✅ Theme-aware background
-                color: (isDark ? Colors.black : Colors.white).withValues(alpha: isDark ? 0.15 : 0.05),
-                border: Border.all(
-                  color: theme.colorScheme.primary.withValues(alpha: 0.4),
-                  width: 1.2,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  icon,
+                  size: 28,
+                  color: theme.colorScheme.primary,
                 ),
               ),
-              child: Row(
-                children: [
-                  Icon(
-                    icon,
-                    size: 50,
-                    color: theme.colorScheme.primary,
-                  ),
-                  const SizedBox(width: 20),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          title,
-                          style: GoogleFonts.poppins(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w600,
-                            color: theme.colorScheme.onSurface,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          subtitle,
-                          style: GoogleFonts.poppins(
-                            fontSize: 14,
-                            color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
-                          ),
-                        ),
-                      ],
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: GoogleFonts.poppins(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: theme.colorScheme.onSurface,
+                      ),
                     ),
-                  ),
-                  Icon(
-                    Icons.arrow_forward_ios,
-                    size: 16,
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
-                  )
-                ],
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
+              Icon(
+                Icons.arrow_forward_ios,
+                size: 16,
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+              ),
+            ],
           ),
         ),
       ),

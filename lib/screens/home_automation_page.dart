@@ -1,35 +1,20 @@
+// lib/screens/home_automation_page.dart
 import 'dart:async';
-import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../api_config.dart';
 import '../api_service.dart';
 
-// 🔧 Device configuration model
 class AutomationDevice {
   final String id;
   final String label;
   final String onEndpoint;
   final String offEndpoint;
-
-  const AutomationDevice({
-    required this.id,
-    required this.label,
-    required this.onEndpoint,
-    required this.offEndpoint,
-  });
-}
-
-// 🧩 Extension for keyed widgets (performance)
-extension WidgetKeyed on Widget {
-  Widget keyed({required Key key}) => KeyedSubtree(
-        key: key,
-        child: this,
-      );
+  const AutomationDevice({required this.id, required this.label, required this.onEndpoint, required this.offEndpoint});
 }
 
 class HomeAutomationPage extends StatefulWidget {
   const HomeAutomationPage({super.key});
-
   @override
   State<HomeAutomationPage> createState() => _HomeAutomationPageState();
 }
@@ -38,14 +23,9 @@ class _HomeAutomationPageState extends State<HomeAutomationPage> {
   Map<String, dynamic> home = {};
   Timer? _timer;
   bool _isLoading = true;
-
-  // Track pending operations per device
   final Set<String> _pendingDevices = {};
-
-  // Optimistic state that survives periodic refreshes
   final Map<String, bool> _optimisticStatus = {};
 
-  // Device definitions
   static const List<AutomationDevice> _lights = [
     AutomationDevice(id: 'light1_hub', label: 'Light 1 Hub', onEndpoint: ApiConfig.light1On, offEndpoint: ApiConfig.light1Off),
     AutomationDevice(id: 'light2_hub', label: 'Light 2 Hub', onEndpoint: ApiConfig.light2On, offEndpoint: ApiConfig.light2Off),
@@ -79,42 +59,14 @@ class _HomeAutomationPageState extends State<HomeAutomationPage> {
   Future<void> loadData() async {
     try {
       final rawData = await ApiService.fetchData(ApiConfig.homeData);
-
-      if (rawData is! Map) {
-        throw Exception('API returned non-Map data');
-      }
-
-      // ✅ FIXED: use debugPrint instead of print
-      assert(() {
-        debugPrint('[HomeAutomation] Loaded data keys: ${rawData.keys.join(', ')}');
-        return true;
-      }());
-
-      // Safely extract string-keyed data
+      if (rawData is! Map) throw Exception('Invalid data');
       final safeData = <String, dynamic>{};
       for (final entry in rawData.entries) {
-        if (entry.key is String) {
-          safeData[entry.key as String] = entry.value;
-        }
+        if (entry.key is String) safeData[entry.key] = entry.value;
       }
-
-      if (mounted) {
-        setState(() {
-          home = safeData;
-        });
-      }
-    } catch (e, stack) {
-      // ✅ FIXED: use debugPrint instead of print
-      assert(() {
-        debugPrint('[HomeAutomation] Load error: $e\n$stack');
-        return true;
-      }());
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load  $e')),
-        );
-      }
+      if (mounted) setState(() => home = safeData);
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Load failed: $e')));
     }
   }
 
@@ -134,10 +86,7 @@ class _HomeAutomationPageState extends State<HomeAutomationPage> {
     final device = devices
         .whereType<Map<dynamic, dynamic>>()
         .map((d) => d.map((k, v) => MapEntry(k.toString(), v)))
-        .firstWhere(
-          (d) => d['device_id'] == deviceId,
-          orElse: () => {},
-        );
+        .firstWhere((d) => d['device_id'] == deviceId, orElse: () => {});
     return device['status'] as String?;
   }
 
@@ -148,8 +97,7 @@ class _HomeAutomationPageState extends State<HomeAutomationPage> {
   bool _fetchStatusFromApi(String deviceId) {
     final lights = (home['lights'] as List<dynamic>?) ?? [];
     final fans = (home['fans'] as List<dynamic>?) ?? [];
-    final allDevices = [...lights, ...fans];
-    final statusStr = _getDeviceStatus(allDevices, deviceId);
+    final statusStr = _getDeviceStatus([...lights, ...fans], deviceId);
     return isOn(statusStr);
   }
 
@@ -166,123 +114,104 @@ class _HomeAutomationPageState extends State<HomeAutomationPage> {
     try {
       final endpoint = newValue ? device.onEndpoint : device.offEndpoint;
       await ApiService.postTrigger(endpoint);
-      // Keep optimistic state — now confirmed
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Action failed: ${e.toString().substring(0, 80)}...')),
-        );
-        setState(() {
-          _optimisticStatus[deviceId] = currentValue;
-        });
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Action failed: ${e.toString().substring(0, 80)}...')));
+        setState(() => _optimisticStatus[deviceId] = currentValue);
       }
     } finally {
-      if (mounted) {
-        setState(() {
-          _pendingDevices.remove(deviceId);
-        });
+      if (mounted) setState(() => _pendingDevices.remove(deviceId));
+    }
+  }
+
+  Widget _buildSectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: Text(
+        title,
+        style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+      ),
+    );
+  }
+
+  Widget _buildMetricCard(String label, dynamic value, {String? unit}) {
+    String displayValue = '--';
+    if (value != null && value != '' && value != 'null') {
+      if (value is num) {
+        displayValue = (value is double && value % 1 != 0) ? value.toStringAsFixed(1) : value.toString();
+      } else {
+        displayValue = value.toString();
       }
     }
-  }
 
-  Widget _glassCard({required Widget child}) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 6),
-      decoration: BoxDecoration(
-        color: (isDark ? Colors.black54 : Colors.white)
-            .withValues(alpha: isDark ? 0.65 : 0.75),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.08),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-        border: Border.all(
-          color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.15),
-        ),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            child: child,
-          ),
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Flexible(
+              child: Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
+            ),
+            Text.rich(
+              TextSpan(
+                text: displayValue,
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                children: unit != null
+                    ? [TextSpan(text: ' $unit', style: const TextStyle(fontWeight: FontWeight.normal, fontSize: 14))]
+                    : [],
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _controlTile(AutomationDevice device) {
+  Widget _buildDeviceTile(AutomationDevice device) {
     final isPending = _pendingDevices.contains(device.id);
     final effectiveValue = _getEffectiveStatus(device.id);
+    final theme = Theme.of(context);
 
-    return _glassCard(
-      child: Semantics(
-        container: true,
-        label: '${device.label}, ${effectiveValue ? 'on' : 'off'}',
-        child: SwitchListTile.adaptive(
-          title: Text(device.label, style: Theme.of(context).textTheme.titleMedium),
-          value: effectiveValue,
-          onChanged: isPending ? null : (value) => _toggleDevice(device),
-          contentPadding: EdgeInsets.zero,
-          dense: true,
-          secondary: isPending
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : null,
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: effectiveValue ? theme.colorScheme.primary.withOpacity(0.15) : Colors.grey.withOpacity(0.1),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: effectiveValue ? theme.colorScheme.primary : Colors.grey,
+                  width: 2,
+                ),
+              ),
+              child: Icon(
+                effectiveValue ? Icons.power : Icons.power_off,
+                color: effectiveValue ? theme.colorScheme.primary : Colors.grey,
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                device.label,
+                style: theme.textTheme.titleMedium,
+              ),
+            ),
+            if (isPending)
+              const CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(Colors.green)),
+            if (!isPending)
+              Switch.adaptive(
+                value: effectiveValue,
+                onChanged: (value) => _toggleDevice(device),
+                activeColor: theme.colorScheme.primary,
+              ),
+          ],
         ),
-      ),
-    );
-  }
-
-  Widget _metricTile(String label, dynamic value, {String? unit}) {
-    String displayValue;
-    if (value == null || value == '' || value == 'null') {
-      displayValue = '--';
-    } else if (value is num) {
-      displayValue = (value is double && value % 1 != 0)
-          ? value.toStringAsFixed(1)
-          : value.toString();
-    } else {
-      displayValue = value.toString();
-    }
-
-    return _glassCard(
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Flexible(
-            child: Text(
-              label,
-              style: const TextStyle(fontWeight: FontWeight.w500),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          Text.rich(
-            TextSpan(
-              text: displayValue,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-              children: unit != null
-                  ? [
-                      TextSpan(
-                        text: ' $unit',
-                        style: const TextStyle(fontWeight: FontWeight.normal, fontSize: 14),
-                      )
-                    ]
-                  : [],
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -297,40 +226,37 @@ class _HomeAutomationPageState extends State<HomeAutomationPage> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Home Automation")),
+      appBar: AppBar(
+        title: const Text("Campus Monitor"),
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        elevation: 0,
+        systemOverlayStyle: Theme.of(context).brightness == Brightness.dark
+            ? SystemUiOverlayStyle.light
+            : SystemUiOverlayStyle.dark,
+      ),
       body: RefreshIndicator(
-        onRefresh: () async {
-          await loadData();
-          // Do NOT clear optimistic state — preserve user intent
-        },
+        onRefresh: loadData,
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            // === System Info ===
-            const Text("System Status", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 12),
-            _metricTile("Location", home['centre']),
-            _metricTile("Last Updated", home['last_updated']),
-            _metricTile("Battery", home['battery'], unit: "V"),
-            _metricTile("Door Status", home['door_status']),
-            _metricTile("Temperature", home['temperature'], unit: "°C"),
-            _metricTile("Humidity", home['humidity'], unit: "%"),
-            _metricTile("CO₂", home['co2'], unit: "ppm"),
-            _metricTile("Pressure", home['pressure'], unit: "hPa"),
-
-            const SizedBox(height: 24),
+            // === System Metrics ===
+            _buildSectionTitle("System Status"),
+            _buildMetricCard("Location", home['centre']),
+            _buildMetricCard("Last Updated", home['last_updated']),
+            _buildMetricCard("Battery", home['battery'], unit: "V"),
+            _buildMetricCard("Door Status", home['door_status']),
+            _buildMetricCard("Temperature", home['temperature'], unit: "°C"),
+            _buildMetricCard("Humidity", home['humidity'], unit: "%"),
+            _buildMetricCard("CO₂", home['co2'], unit: "ppm"),
+            _buildMetricCard("Pressure", home['pressure'], unit: "hPa"),
 
             // === Lights ===
-            const Text("Lights", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 12),
-            ..._lights.map((device) => _controlTile(device).keyed(key: Key('light-${device.id}'))),
-
-            const SizedBox(height: 24),
+            _buildSectionTitle("Lights"),
+            ..._lights.map(_buildDeviceTile),
 
             // === Fans ===
-            const Text("Fans", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 12),
-            ..._fans.map((device) => _controlTile(device).keyed(key: Key('fan-${device.id}'))),
+            _buildSectionTitle("Fans"),
+            ..._fans.map(_buildDeviceTile),
           ],
         ),
       ),

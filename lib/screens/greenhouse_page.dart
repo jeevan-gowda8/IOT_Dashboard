@@ -1,6 +1,8 @@
+// lib/screens/greenhouse_page.dart
 import 'dart:async';
-import 'dart:ui';
-import 'package:flutter/material.dart'; // debugPrint is available here
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // ✅ Required for SystemUiOverlayStyle
+
 import '../api_config.dart';
 import '../api_service.dart';
 
@@ -16,13 +18,6 @@ class GreenhouseDevice {
     required this.onEndpoint,
     required this.offEndpoint,
   });
-}
-
-extension WidgetKeyed on Widget {
-  Widget keyed({required Key key}) => KeyedSubtree(
-        key: key,
-        child: this,
-      );
 }
 
 class GreenhousePage extends StatefulWidget {
@@ -67,37 +62,16 @@ class _GreenhousePageState extends State<GreenhousePage> {
   Future<void> loadData() async {
     try {
       final rawData = await ApiService.fetchData(ApiConfig.greenhouseData);
-
-      if (rawData is! Map) {
-        throw Exception('API returned non-Map data');
-      }
-
-      assert(() {
-        debugPrint('[Greenhouse] Loaded keys: ${rawData.keys.join(', ')}');
-        return true;
-      }());
-
+      if (rawData is! Map) throw Exception('Invalid data');
       final safeData = <String, dynamic>{};
       for (final entry in rawData.entries) {
-        if (entry.key is String) {
-          safeData[entry.key as String] = entry.value;
-        }
+        if (entry.key is String) safeData[entry.key] = entry.value;
       }
-
-      if (mounted) {
-        setState(() {
-          gh = safeData;
-        });
-      }
-    } catch (e, stack) {
-      assert(() {
-        debugPrint('[Greenhouse] Load error: $e\n$stack');
-        return true;
-      }());
-
+      if (mounted) setState(() => gh = safeData);
+    } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load  $e')),
+          SnackBar(content: Text('Failed to load: $e')),
         );
       }
     }
@@ -136,117 +110,107 @@ class _GreenhousePageState extends State<GreenhousePage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Action failed: ${e.toString().substring(0, 80)}...')),
         );
-        setState(() {
-          _optimisticStatus[deviceId] = currentValue;
-        });
+        setState(() => _optimisticStatus[deviceId] = currentValue);
       }
     } finally {
       if (mounted) {
-        setState(() {
-          _pendingDevices.remove(deviceId);
-        });
+        setState(() => _pendingDevices.remove(deviceId));
       }
     }
   }
 
-  Widget _glassCard({required Widget child}) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 6),
-      decoration: BoxDecoration(
-        color: (isDark ? Colors.black54 : Colors.white)
-            .withValues(alpha: isDark ? 0.65 : 0.75),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.08),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-        border: Border.all(
-          color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.15),
-        ),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            child: child,
-          ),
-        ),
+  Widget _buildSectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: Text(
+        title,
+        style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
       ),
     );
   }
 
-  Widget _controlTile(GreenhouseDevice device) {
-    final isPending = _pendingDevices.contains(device.id);
-    final effectiveValue = _getEffectiveStatus(device.id);
-
-    return _glassCard(
-      child: Semantics(
-        container: true,
-        label: '${device.label}, ${effectiveValue ? 'on' : 'off'}',
-        child: SwitchListTile.adaptive(
-          title: Text(device.label, style: Theme.of(context).textTheme.titleMedium),
-          value: effectiveValue,
-          onChanged: isPending ? null : (value) => _toggleDevice(device),
-          contentPadding: EdgeInsets.zero,
-          dense: true,
-          secondary: isPending
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : null,
-        ),
-      ),
-    );
-  }
-
-  Widget _metricTile(String label, dynamic value, {String? unit}) {
-    String displayValue;
-    if (value == null || value == '' || value == 'null') {
-      displayValue = '--';
-    } else if (value is num) {
-      displayValue = (value is double && value % 1 != 0)
-          ? value.toStringAsFixed(1)
-          : value.toString();
-    } else {
-      displayValue = value.toString();
+  Widget _buildMetricCard(String label, dynamic value, {String? unit}) {
+    String displayValue = '--';
+    if (value != null && value != '' && value != 'null') {
+      if (value is num) {
+        displayValue = (value is double && value % 1 != 0) ? value.toStringAsFixed(1) : value.toString();
+      } else {
+        displayValue = value.toString();
+      }
     }
 
-    return _glassCard(
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Flexible(
-            child: Text(
-              label,
-              style: const TextStyle(fontWeight: FontWeight.w500),
-              overflow: TextOverflow.ellipsis,
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Flexible(
+              child: Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
             ),
-          ),
-          Text.rich(
-            TextSpan(
-              text: displayValue,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-              children: unit != null
-                  ? [
-                      TextSpan(
-                        text: ' $unit',
-                        style: const TextStyle(fontWeight: FontWeight.normal, fontSize: 14),
-                      )
-                    ]
-                  : [],
+            Text.rich(
+              TextSpan(
+                text: displayValue,
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                children: unit != null
+                    ? [TextSpan(text: ' $unit', style: const TextStyle(fontWeight: FontWeight.normal, fontSize: 14))]
+                    : [],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDeviceTile(GreenhouseDevice device) {
+    final isPending = _pendingDevices.contains(device.id);
+    final effectiveValue = _getEffectiveStatus(device.id);
+    final theme = Theme.of(context);
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: effectiveValue
+                    ? theme.colorScheme.primary.withValues(alpha: 0.15) // ✅ FIXED
+                    : Colors.grey.withValues(alpha: 0.1), // ✅ FIXED
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: effectiveValue ? theme.colorScheme.primary : Colors.grey,
+                  width: 2,
+                ),
+              ),
+              child: Icon(
+                effectiveValue ? Icons.water_drop : Icons.water_drop_outlined,
+                color: effectiveValue ? theme.colorScheme.primary : Colors.grey,
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                device.label,
+                style: theme.textTheme.titleMedium,
+              ),
+            ),
+            if (isPending)
+              const CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(Colors.green)),
+            if (!isPending)
+              Switch.adaptive(
+                value: effectiveValue,
+                onChanged: (value) => _toggleDevice(device),
+                // ✅ FIXED: activeThumbColor instead of activeColor
+                activeThumbColor: theme.colorScheme.primary,
+                activeTrackColor: theme.colorScheme.primary.withOpacity(0.3), // optional track tint
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -261,50 +225,48 @@ class _GreenhousePageState extends State<GreenhousePage> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Greenhouse Monitor")),
+      appBar: AppBar(
+        title: const Text("Greenhouse Monitor"),
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        elevation: 0,
+        // ✅ FIXED: SystemUiOverlayStyle is now available
+        systemOverlayStyle: Theme.of(context).brightness == Brightness.dark
+            ? SystemUiOverlayStyle.light
+            : SystemUiOverlayStyle.dark,
+      ),
       body: RefreshIndicator(
-        onRefresh: () async {
-          await loadData();
-        },
+        onRefresh: loadData,
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            const Text("Environment", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 12),
-            _metricTile("Temperature", gh['temp'], unit: "°C"),
-            _metricTile("Humidity", gh['humi'], unit: "%"),
-            _metricTile("CO₂", gh['co2'], unit: "ppm"),
-            _metricTile("Atmospheric Pressure", gh['pressure'], unit: "hPa"),
+            // === Environment ===
+            _buildSectionTitle("Environment"),
+            _buildMetricCard("Temperature", gh['temp'], unit: "°C"),
+            _buildMetricCard("Humidity", gh['humi'], unit: "%"),
+            _buildMetricCard("CO₂", gh['co2'], unit: "ppm"),
+            _buildMetricCard("Atmospheric Pressure", gh['pressure'], unit: "hPa"),
 
-            const SizedBox(height: 24),
+            // === Soil Conditions ===
+            _buildSectionTitle("Soil Conditions"),
+            _buildMetricCard("Soil Temperature", gh['soil_temp'], unit: "°C"),
+            _buildMetricCard("Soil Humidity", gh['soil_humi'], unit: "%"),
+            _buildMetricCard("Moisture", gh['moisture'], unit: "%"),
+            _buildMetricCard("Soil Conductivity", gh['soil_conduct'], unit: "µS/cm"),
+            _buildMetricCard("pH", gh['pH']),
 
-            const Text("Soil Conditions", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 12),
-            _metricTile("Soil Temperature", gh['soil_temp'], unit: "°C"),
-            _metricTile("Soil Humidity", gh['soil_humi'], unit: "%"),
-            _metricTile("Moisture", gh['moisture'], unit: "%"),
-            _metricTile("Soil Conductivity", gh['soil_conduct'], unit: "µS/cm"),
-            _metricTile("pH", gh['pH']),
+            // === Nutrient Levels ===
+            _buildSectionTitle("Nutrient Levels"),
+            _buildMetricCard("Nitrogen (N)", gh['N'], unit: "mg/kg"),
+            _buildMetricCard("Phosphorus (P)", gh['P'], unit: "mg/kg"),
+            _buildMetricCard("Potassium (K)", gh['K'], unit: "mg/kg"),
 
-            const SizedBox(height: 24),
+            // === Water System ===
+            _buildSectionTitle("Water System"),
+            _buildMetricCard("Water Level", gh['water_level'], unit: "cm"),
 
-            const Text("Nutrient Levels", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 12),
-            _metricTile("Nitrogen (N)", gh['N'], unit: "mg/kg"),
-            _metricTile("Phosphorus (P)", gh['P'], unit: "mg/kg"),
-            _metricTile("Potassium (K)", gh['K'], unit: "mg/kg"),
-
-            const SizedBox(height: 24),
-
-            const Text("Water System", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 12),
-            _metricTile("Water Level", gh['water_level'], unit: "cm"),
-
-            const SizedBox(height: 24),
-
-            const Text("Controls", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 12),
-            ..._devices.map((device) => _controlTile(device).keyed(key: Key('gh-${device.id}'))),
+            // === Controls ===
+            _buildSectionTitle("Controls"),
+            ..._devices.map(_buildDeviceTile),
           ],
         ),
       ),

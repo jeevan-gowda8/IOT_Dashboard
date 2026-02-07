@@ -1,6 +1,8 @@
+// lib/screens/street_light_page.dart
 import 'dart:async';
-import 'dart:ui';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart'; // debugPrint is available via assert
+import 'package:flutter/services.dart';
+
 import '../api_config.dart';
 import '../api_service.dart';
 
@@ -100,33 +102,10 @@ class _StreetLightPageState extends State<StreetLightPage> {
     }
   }
 
-  List<Color> _cardGradient(ThemeData theme) {
-    final glow = _isLightOn
-        ? theme.colorScheme.primary
-        : theme.colorScheme.secondary;
-    return [
-      glow.withValues(alpha: 0.30),
-      theme.scaffoldBackgroundColor,
-    ];
-  }
-
-  Color _glow(ThemeData theme) => _isLightOn
-      ? theme.colorScheme.primary
-      : theme.colorScheme.secondary;
-
-  Color _glassColor(ThemeData theme) =>
-      theme.brightness == Brightness.dark
-          ? Colors.white.withValues(alpha: 0.05)
-          : Colors.black.withValues(alpha: 0.04);
-
-  Color _borderColor(ThemeData theme) =>
-      theme.brightness == Brightness.dark
-          ? Colors.white.withValues(alpha: 0.12)
-          : Colors.black.withValues(alpha: 0.08);
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final iconColor = _isLightOn ? theme.colorScheme.primary : theme.disabledColor;
 
     return Scaffold(
       appBar: AppBar(
@@ -136,67 +115,55 @@ class _StreetLightPageState extends State<StreetLightPage> {
           tooltip: 'Back',
           onPressed: () => Navigator.of(context).pop(),
         ),
+        backgroundColor: theme.scaffoldBackgroundColor,
+        elevation: 0,
+        systemOverlayStyle: theme.brightness == Brightness.dark
+            ? SystemUiOverlayStyle.light
+            : SystemUiOverlayStyle.dark,
       ),
-      backgroundColor: theme.scaffoldBackgroundColor,
       body: Center(
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-          padding: const EdgeInsets.all(30),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(28),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: _cardGradient(theme),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: _glow(theme).withValues(alpha: 0.35),
-                blurRadius: 45,
-                spreadRadius: 2,
-              ),
-            ],
-            border: Border.all(color: _borderColor(theme)),
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(28),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-              child: Container(
-                color: _glassColor(theme),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.lightbulb,
-                      size: 80,
-                      color: _glow(theme),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Card(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Lightbulb Icon
+                  Icon(
+                    Icons.lightbulb,
+                    size: 80,
+                    color: iconColor,
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Status Text
+                  Text(
+                    _isLightOn
+                        ? "STREET LIGHT IS ON"
+                        : "STREET LIGHT IS OFF",
+                    style: TextStyle(
+                      color: theme.colorScheme.onSurface,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
                     ),
-                    const SizedBox(height: 20),
-                    Text(
-                      _isLightOn
-                          ? "STREET LIGHT IS ON"
-                          : "STREET LIGHT IS OFF",
-                      style: TextStyle(
-                        color: theme.colorScheme.onSurface,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      textAlign: TextAlign.center,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 32),
+
+                  // Switch
+                  Semantics(
+                    container: true,
+                    label: 'Street light, ${_isLightOn ? 'on' : 'off'}',
+                    child: Switch.adaptive(
+                      value: _isLightOn,
+                      activeThumbColor: theme.colorScheme.primary, // ✅ Correct
+                      onChanged: _isPending ? null : _toggleLight,
                     ),
-                    const SizedBox(height: 30),
-                    Semantics(
-                      container: true,
-                      label: 'Street light, ${_isLightOn ? 'on' : 'off'}',
-                      child: Switch.adaptive(
-                        value: _isLightOn,
-                        // ✅ FIXED: activeColor → activeThumbColor
-                        activeThumbColor: theme.colorScheme.primary,
-                        onChanged: _isPending ? null : _toggleLight,
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
