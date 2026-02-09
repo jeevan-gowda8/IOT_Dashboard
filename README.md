@@ -41,15 +41,6 @@ https://github.com/user-attachments/assets/8b9e4d5a-3f1c-4f8a-9c0a-1e3b5e8f7d2a
 
 ---
 
-## 📱 Screenshots
-
-| Home Automation | Greenhouse | Street Light |
-|----------------|------------|--------------|
-| ![Home](screenshots/home.png) | ![Greenhouse](screenshots/greenhouse.png) | ![Street](screenshots/street.png) |
-
-> 💡 **Tip**: Add real screenshots to a `/screenshots` folder in your repo!
-
----
 
 ## 🛠️ Tech Stack
 
@@ -73,3 +64,4 @@ https://github.com/user-attachments/assets/8b9e4d5a-3f1c-4f8a-9c0a-1e3b5e8f7d2a
    ```bash
    git clone https://github.com/your-username/iot_dashboard.git
    cd iot_dashboard
+
